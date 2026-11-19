@@ -28,7 +28,7 @@ Flujo automatizado en http://opencart.abstracta.us/: agregar **MacBook** e **iPh
 
 ![Reporte Serenity](docs/img/serenity-resumen.png)
 
-📄 [readme.txt](01-e2e-opencart-serenity/readme.txt) · [conclusiones.txt](01-e2e-opencart-serenity/conclusiones.txt) · [Reporte HTML](ghttps://santisanchez4.github.io/qa-challenge-sofka/01-e2e-opencart-serenity/reports/index.html)
+📄 [readme.txt](01-e2e-opencart-serenity/readme.txt) · [conclusiones.txt](01-e2e-opencart-serenity/conclusiones.txt) · [Reporte HTML](https://santisanchez4.github.io/qa-challenge-sofka/01-e2e-opencart-serenity/reports/index.html)
 
 ---
 
