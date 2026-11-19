@@ -1,0 +1,127 @@
+=====================================================================
+ PRUEBA TECNICA V9 - EJERCICIO 2: CONCLUSIONES
+ API: https://petstore.swagger.io/v2 | Herramienta: Karate 1.5.2
+ Fecha de ejecucion: 19/11/2026
+=====================================================================
+
+1. RESUMEN
+----------
+Los 5 casos solicitados se automatizaron y pasan correctamente. Se
+agregaron 2 validaciones extra (usuario eliminado y usuario inexistente).
+
+  Escenarios: 2 | Aprobados: 2 | Fallidos: 0
+  Ejecuciones consecutivas: 4 de 4 exitosas (sin reintentos necesarios)
+  Duracion: ~2 segundos por ejecucion
+
+
+2. ENFOQUE
+----------
+  - Un escenario de punta a punta (@crud) que encadena los 5 casos: cada
+    paso depende del anterior (no se puede buscar un usuario que no se
+    creo), por lo que el flujo se modela como un ciclo de vida.
+  - Datos unicos por ejecucion: username e id se generan con un timestamp
+    (ej. qa_santiago_1795114932096). PetStore es una API publica
+    compartida: un nombre fijo podria chocar con datos de otras personas.
+  - La entrada se separa del script: plantilla data/user.json con
+    expresiones embebidas (#(variable)).
+  - El usuario se limpia al final (DELETE), sin dejar datos de prueba.
+  - Validaciones completas: se compara el objeto entero (match ==), no
+    solo el codigo de estado.
+
+
+3. DETALLE POR CASO (ENTRADAS, SALIDAS Y VALIDACIONES)
+-------------------------------------------------------
+Variables: ts (timestamp), userId = ts, username = 'qa_santiago_' + ts
+
+CASO 1 - Crear usuario
+  Entrada:   POST /v2/user
+             { id, username, firstName: "Santiago", lastName: "Sanchez",
+               email: "santiago.<ts>@test.com", password, phone,
+               userStatus: 1 }
+  Salida:    200 { code: 200, type: "unknown", message: "<id>" }
+  Validado:  status 200, estructura de la respuesta, message == id
+
+CASO 2 - Buscar el usuario creado
+  Entrada:   GET /v2/user/{username}
+  Salida:    200 con el usuario completo
+  Validado:  la respuesta es IGUAL al usuario enviado en el caso 1
+
+CASO 3 - Actualizar nombre y correo
+  Entrada:   PUT /v2/user/{username}
+             firstName: "Santiago Actualizado"
+             email:     "santiago.actualizado.<ts>@test.com"
+  Salida:    200 { code: 200, type: "unknown", message: "<id>" }
+  Validado:  status 200, estructura, message == id
+
+CASO 4 - Buscar el usuario actualizado
+  Entrada:   GET /v2/user/{username}
+  Salida:    200 con firstName y email nuevos
+  Validado:  firstName y email nuevos; el resto de los campos sin cambios
+             (la respuesta es igual al usuario actualizado completo)
+
+CASO 5 - Eliminar el usuario
+  Entrada:   DELETE /v2/user/{username}
+  Salida:    200 { code: 200, type: "unknown", message: "<username>" }
+  Validado:  status 200, message == username
+
+EXTRA - Verificar eliminacion
+  Entrada:   GET /v2/user/{username}
+  Salida:    404 { code: 1, type: "error", message: "User not found" }
+
+EXTRA - Usuario inexistente (escenario @negative)
+  Entrada:   GET /v2/user/no_existe_<ts>
+  Salida:    404 { code: 1, type: "error", message: "User not found" }
+
+
+4. HALLAZGOS
+------------
+
+H1. [Seguridad] La API devuelve la contrasena en texto plano.
+    GET /user/{username} incluye el campo "password" con el valor enviado.
+    En una API real esto es una vulnerabilidad: las contrasenas nunca
+    deberian devolverse (ni almacenarse sin hash).
+
+H2. [Seguridad] Las operaciones no requieren autenticacion.
+    Cualquier cliente puede crear, modificar o eliminar cualquier usuario
+    conociendo solo su username. Es esperable en una API de demostracion,
+    pero seria un defecto critico en un sistema real.
+
+H3. [Diseno de API] Respuestas genericas en escritura.
+    POST, PUT y DELETE responden { code, type: "unknown", message } con
+    el id o el username como texto, en lugar de devolver el recurso
+    creado o actualizado. Ademas, POST responde 200 en lugar de 201
+    (Created), que es el codigo estandar REST para creacion.
+
+H4. [Estabilidad] Mecanismo de reintento preventivo.
+    PetStore es una API publica con varias instancias detras de un
+    balanceador; es conocido que un GET inmediatamente posterior a un
+    POST/PUT puede devolver 404 o datos viejos. Se configuro un reintento
+    (hasta 5 veces cada 2 s) solo en las consultas, condicionado al
+    resultado esperado (retry until). En las 4 ejecuciones no fue
+    necesario reintentar, pero el mecanismo evita falsos negativos
+    (pruebas inestables o "flaky") sin ocultar errores reales: si despues
+    de 5 intentos no se cumple la condicion, la prueba falla.
+
+H5. [Validacion] El campo email no se valida en formato.
+    No se incluyo como caso de prueba porque no forma parte del alcance
+    pedido, pero se recomienda agregar escenarios negativos: email
+    invalido, username duplicado, body vacio o campos obligatorios
+    faltantes.
+
+
+5. CONCLUSIONES
+---------------
+  - El CRUD de usuario funciona correctamente: los datos persisten y se
+    actualizan como se espera, y la eliminacion es efectiva.
+  - La suite es estable y repetible (4/4 ejecuciones exitosas), con datos
+    independientes por ejecucion y limpieza al final.
+  - Desde el punto de vista de calidad de la API se detectaron problemas
+    de seguridad (H1, H2) y de diseno REST (H3) que se reportarian en un
+    proyecto real.
+
+
+6. EVIDENCIA
+------------
+  - Reporte HTML de Karate: reports/karate-summary.html
+    (detalle de cada request/response en reports/petstore.user.user-crud.html)
+  - Para regenerarlo: mvn clean test -> target/karate-reports/

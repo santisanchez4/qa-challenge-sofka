@@ -1,0 +1,11 @@
+# Generados por Maven
+target/
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Archivos comprimidos de trabajo
+*.zip

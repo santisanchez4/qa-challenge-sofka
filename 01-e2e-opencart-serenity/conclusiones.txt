@@ -1,0 +1,127 @@
+=====================================================================
+ PRUEBA TECNICA V9 - EJERCICIO 1: CONCLUSIONES
+ Sitio: http://opencart.abstracta.us/ | Herramienta: Serenity BDD 5.3.8
+ Fecha de ejecucion: 19/11/2026
+=====================================================================
+
+1. RESUMEN
+----------
+El flujo de compra como invitado se automatizo de punta a punta y
+finaliza con el mensaje "Your order has been placed!".
+
+  Escenarios: 1 | Aprobados: 1 | Fallidos: 0
+  Ejecuciones consecutivas: 3 de 3 exitosas (version final)
+  Duracion: ~22 segundos por ejecucion
+
+
+2. ENFOQUE
+----------
+  - Patron Screenplay (recomendado por Serenity): el cliente es un actor
+    que realiza tareas de negocio (AgregarAlCarrito, VerCarrito,
+    CompletarCheckoutInvitado, ConfirmarOrden) y responde preguntas
+    (ProductosEnCarrito, MensajeConfirmacion). Los selectores estan
+    separados en clases de UI, asi un cambio en la pagina se corrige en
+    un solo lugar.
+  - Escenario en Gherkin en español, legible para negocio. Los productos
+    y los datos del cliente se pasan como tablas en el feature: cambiar
+    los datos no requiere tocar codigo.
+  - Productos elegidos: MacBook e iPhone, porque no tienen opciones
+    obligatorias. "Apple Cinema 30" y "Canon EOS 5D" exigen elegir
+    opciones (color, talle, etc.) antes de agregarse; eso agregaria pasos
+    que no aportan al objetivo del flujo.
+  - Validaciones en dos puntos del flujo, no solo al final:
+      * El carrito contiene exactamente los dos productos agregados.
+      * La pagina final muestra "Your order has been placed!".
+  - Esperas explicitas (WaitUntil) en lugar de pausas fijas: el carrito y
+    cada paso del checkout se cargan por AJAX, por lo que se espera a que
+    el siguiente elemento este visible o clickeable antes de interactuar.
+  - Navegador nuevo por escenario (OnlineCast): cada ejecucion empieza con
+    el carrito vacio y no depende de ejecuciones anteriores.
+  - Captura de pantalla en cada accion, como evidencia en el reporte.
+
+
+3. FLUJO AUTOMATIZADO
+---------------------
+  1. Inicio -> pagina de MacBook -> Add to Cart -> espera el mensaje de exito
+  2. Inicio -> pagina de iPhone  -> Add to Cart -> espera el mensaje de exito
+  3. Shopping Cart -> valida que esten MacBook e iPhone
+  4. Checkout:
+       Paso 1  Checkout Options   -> Guest Checkout -> Continue
+       Paso 2  Billing Details    -> datos del cliente (pais Uruguay,
+                                     departamento Montevideo) -> Continue
+       Paso 3  Delivery Details   -> se omite: la direccion de envio es la
+                                     misma que la de facturacion (opcion
+                                     marcada por defecto)
+       Paso 4  Delivery Method    -> Continue
+       Paso 5  Payment Method     -> acepta Terms & Conditions -> Continue
+       Paso 6  Confirm Order      -> Confirm Order
+  5. Valida el mensaje "Your order has been placed!"
+
+
+4. HALLAZGOS
+------------
+
+H1. [Sincronizacion] Falso positivo en la espera de la confirmacion.
+    En la primera version, la prueba esperaba a que el titulo (h1) fuera
+    visible despues de confirmar la orden. La prueba fallaba
+    con: Expected "Your order has been placed!" but was "Checkout".
+    Causa: la pagina de checkout TAMBIEN tiene un h1 ("Checkout"), por lo
+    que la espera se cumplia al instante, antes de la redireccion a la
+    pagina de exito. Solucion: esperar un elemento que solo existe en la
+    pagina de exito (el breadcrumb que apunta a checkout/success).
+    Leccion: una espera tiene que apuntar a algo que identifique de forma
+    UNICA el estado esperado; si no, la prueba se vuelve inestable.
+
+H2. [Herramienta] Ambiguedad en la deteccion de selectores.
+    Target.locatedBy("a[title='Shopping Cart']") fue interpretado por
+    Serenity como XPath y no como CSS, y la prueba fallaba por timeout.
+    Se declararon todos los selectores CSS de forma explicita con
+    By.cssSelector(...). Los XPath parametrizados (por ejemplo el nombre
+    del producto) se mantienen con locatedBy, que permite usar {0}.
+
+H3. [Sitio] El paso "Delivery Details" no aparece en el flujo.
+    Con la opcion "My delivery and billing addresses are the same"
+    marcada por defecto, el checkout salta del paso 2 al paso 4. La
+    automatizacion lo contempla; si en el futuro cambiara ese valor por
+    defecto, habria que agregar ese paso.
+
+H4. [Sitio] Carga asincronica en todo el checkout.
+    Cada panel del checkout y la lista de departamentos (que se recarga al
+    elegir el pais) se cargan por AJAX. Es la causa mas comun de pruebas
+    inestables en este tipo de flujos; se resolvio con esperas
+    explicitas por elemento, sin pausas fijas (Thread.sleep).
+
+H5. [Seguridad] El sitio funciona solo por HTTP, sin HTTPS.
+    Los datos personales del checkout viajan sin cifrar. Es aceptable en
+    un sitio de demostracion, pero seria un defecto critico en una tienda
+    real.
+
+H6. [Datos] Cada ejecucion genera una orden real en la tienda demo.
+    No hay forma de anular la orden como invitado. Se usaron datos de
+    prueba ficticios (email qa.invitado@test.com).
+
+
+5. CONCLUSIONES
+---------------
+  - El flujo de compra como invitado funciona correctamente: los
+    productos se agregan, el carrito los refleja y el checkout termina en
+    la confirmacion esperada.
+  - La prueba es estable (3/3 ejecuciones exitosas) gracias a esperas
+    explicitas sobre elementos unicos de cada estado de la pagina.
+  - La estructura Screenplay permite reutilizar las tareas para nuevos
+    escenarios (por ejemplo, compra con usuario registrado o con un
+    producto con opciones) sin duplicar codigo.
+
+Mejoras sugeridas:
+  - Agregar escenarios negativos: checkout sin aceptar terminos, email
+    invalido o campos obligatorios vacios.
+  - Validar tambien el total de la compra en la confirmacion de la orden.
+  - Ejecutar en mas de un navegador (Chrome, Firefox, Edge) y en un
+    pipeline de CI en modo headless.
+
+
+6. EVIDENCIA
+------------
+  - Reporte HTML de Serenity con capturas de cada accion:
+    reports/index.html (resumen: reports/serenity-summary.html)
+  - Para regenerarlo: mvn clean verify -> target/site/serenity/

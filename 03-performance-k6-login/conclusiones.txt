@@ -1,0 +1,192 @@
+=====================================================================
+ PERFORMANCE - EJERCICIO 1: CONCLUSIONES
+ Servicio: POST https://fakestoreapi.com/auth/login
+ Herramienta: k6 v2.4.0 | Fecha de ejecucion: 19/11/2026
+=====================================================================
+ 
+1. RESUMEN
+----------
+El servicio de login CUMPLE los tres criterios de aceptacion con amplio
+margen:
+ 
+  CRITERIO                    OBJETIVO       RESULTADO (promedio 3 corridas)
+  TPS sostenidas              >= 20          20 TPS (0 iteraciones descartadas)
+  Tiempo de respuesta         <= 1,5 s       p95 = 486 ms | max = 1,13 s
+  Tasa de error               < 3%           0,00%
+ 
+Todas las corridas terminaron con todos los thresholds en verde
+(codigo de salida 0).
+ 
+ 
+2. METODOLOGIA
+--------------
+  1) Verificacion manual previa del servicio. Se confirmo que el login
+     exitoso responde HTTP 201 (no 200) y devuelve un token JWT. Las
+     validaciones del script se basan en ese comportamiento real.
+  2) Linea base (baseline): 3 corridas a 2 TPS durante 1 minuto, para
+     conocer el comportamiento sin presion.
+  3) Carga (load): 3 corridas a 20 TPS sostenidas durante 3 minutos (con
+     ramp-up de 30 s y ramp-down de 10 s). Es la prueba que valida los
+     criterios.
+  4) Estres (stress): 1 corrida exploratoria con escalones de 20, 30 y
+     40 TPS, para buscar el punto de degradacion.
+ 
+Se repitieron 3 veces la linea base y la carga para confirmar que los
+resultados son repetibles y no producto de una corrida aislada.
+ 
+Decisiones de diseño:
+  - Modelo abierto (ramping/constant-arrival-rate): garantiza las TPS
+    aunque el servidor se vuelva lento. Con un modelo cerrado (VUs fijos)
+    las TPS bajarian solas si aumenta el tiempo de respuesta.
+  - Criterio "maximo 1,5 s": se evalua con dos niveles.
+      * Threshold global p(95) < 1500 ms: criterio de pass/fail estandar
+        en performance, que no castiga un unico pico aislado.
+      * Check por peticion (duracion <= 1500 ms): permite ver si ALGUNA
+        peticion individual supero el limite. Resultado: ninguna lo hizo.
+  - Usuarios del CSV cargados con SharedArray (una sola copia en memoria)
+    y rotados en forma secuencial entre iteraciones.
+  - Timeout de 60 s por peticion, equivalente al --max-time 60 del CURL.
+ 
+ 
+3. RESULTADOS
+-------------
+ 
+3.1 Linea base - 2 TPS (3 corridas de 1 minuto)
+ 
+  METRICA      RUN 1      RUN 2      RUN 3      PROMEDIO
+  Peticiones   121        121        121        121
+  avg          467,9 ms   455,5 ms   440,0 ms   454,5 ms
+  med          464,5 ms   449,2 ms   430,6 ms   448,1 ms
+  p90          509,4 ms   509,2 ms   498,1 ms   505,6 ms
+  p95          518,4 ms   509,9 ms   509,3 ms   512,5 ms
+  p99          650,7 ms   561,1 ms   520,2 ms   577,3 ms
+  max          1,08 s     620,2 ms   530,8 ms   743,7 ms
+  Errores      0%         0%         0%         0%
+ 
+3.2 Carga - 20 TPS (3 corridas de 3m40s)
+ 
+  METRICA      RUN 1      RUN 2      RUN 3      PROMEDIO
+  Peticiones   3.999      3.999      3.999      3.999
+  avg          426,7 ms   427,6 ms   427,0 ms   427,1 ms
+  med          417,1 ms   416,6 ms   416,0 ms   416,5 ms
+  p90          460,5 ms   467,1 ms   465,0 ms   464,2 ms
+  p95          479,2 ms   489,6 ms   489,8 ms   486,2 ms
+  p99          534,5 ms   553,0 ms   568,8 ms   552,1 ms
+  max          1,09 s     1,13 s     992,3 ms   1,07 s
+  Errores      0%         0%         0%         0%
+  VUs maximos  10         11         11         ~11
+ 
+3.3 Estres - escalones 20 / 30 / 40 TPS (1 corrida de 4m40s)
+ 
+  Peticiones   7.699
+  avg          422,9 ms
+  p95          480,4 ms
+  p99          555,1 ms
+  max          1,08 s
+  Errores      0%
+  VUs maximos  19
+ 
+3.4 Comparativa
+ 
+  METRICA      BASELINE (2 TPS)   CARGA (20 TPS)   ESTRES (hasta 40 TPS)
+  avg          454,5 ms           427,1 ms         422,9 ms
+  p95          512,5 ms           486,2 ms         480,4 ms
+  p99          577,3 ms           552,1 ms         555,1 ms
+  Errores      0%                 0%               0%
+ 
+ 
+4. HALLAZGOS
+------------
+ 
+H1. Aclaracion sobre las TPS informadas por k6 (18,18/s en carga).
+    k6 calcula http_reqs/s sobre la duracion TOTAL de la prueba,
+    incluyendo ramp-up y ramp-down:
+        ramp-up   30 s, de 0 a 20 TPS   ->   ~300 peticiones
+        estable  180 s a 20 TPS         -> 3.600 peticiones
+        ramp-down 10 s, de 20 a 0 TPS   ->   ~100 peticiones
+        TOTAL    220 s                  -> 4.000 peticiones / 220 s = 18,18/s
+    Se registraron 3.999 peticiones y 0 dropped_iterations, lo que confirma
+    que durante el estado estable se sostuvieron exactamente 20 TPS. El
+    grafico de los reportes HTML muestra la meseta en 20 req/s.
+    El mismo calculo aplica al estres (7.699 peticiones esperadas ~7.700).
+ 
+H2. El sistema cumple el SLA con amplio margen.
+    El p95 a 20 TPS (486 ms) usa aproximadamente un tercio del limite de
+    1,5 s. La peticion mas lenta de todas las corridas fue 1,13 s: ninguna
+    peticion individual supero el limite.
+ 
+H3. Sin degradacion al aumentar la carga.
+    Los tiempos a 20 y 40 TPS son iguales o levemente MEJORES que la linea
+    base. Explicacion: con mas trafico, las conexiones HTTP se reutilizan
+    (keep-alive). En carga, el p99 de http_req_blocked y
+    http_req_connecting es 0 ms, mientras que en la linea base llegaba a
+    45-177 ms por el establecimiento de conexiones nuevas (TCP + TLS).
+ 
+H4. No se encontro punto de quiebre hasta 40 TPS (2 veces el objetivo).
+    El servicio probablemente esta detras de infraestructura que escala
+    (CDN / balanceador). Para encontrar el limite habria que seguir
+    subiendo la carga; no se hizo de forma intencional para no generar
+    carga excesiva sobre una API publica de terceros. Por el mismo motivo
+    el estres se ejecuto una sola vez: al no detectarse degradacion, una
+    corrida es suficiente para la conclusion. Si se hubiera detectado un
+    quiebre, se repetiria para confirmarlo.
+ 
+H5. Sin limitacion de tasa (rate limiting).
+    No se recibio ningun HTTP 429 (Too Many Requests) en ninguna corrida.
+ 
+H6. El tiempo de respuesta es casi en su totalidad tiempo de servidor.
+    http_req_waiting (TTFB) es practicamente igual a http_req_duration;
+    las fases de red (blocked, connecting, TLS, sending, receiving) aportan
+    menos de 1 ms en promedio. Si en algun momento hubiera que optimizar,
+    el foco estaria en el backend, no en la red.
+ 
+H7. Resultados repetibles.
+    En carga, el promedio varia menos de 1 ms entre corridas y el p95
+    menos de 11 ms. En la linea base, el p95 varia menos de 10 ms. La
+    dispersion aparece solo en los extremos (p99 y max), con picos
+    aislados que no forman un patron.
+ 
+H8. Dimensionamiento coherente (Ley de Little).
+    Usuarios concurrentes = TPS x tiempo de respuesta
+        20 TPS x 0,427 s = ~8,5 VUs  (k6 utilizo 10-11)
+        40 TPS x 0,423 s = ~17 VUs   (k6 utilizo 19)
+    Los VUs preasignados (30 en carga, 50 en estres) fueron suficientes:
+    0 iteraciones descartadas.
+ 
+ 
+5. CONCLUSIONES
+---------------
+  - El servicio de login soporta 20 TPS sostenidas cumpliendo todos los
+    criterios: p95 de 486 ms (limite 1.500 ms) y 0% de errores (limite 3%).
+  - Tiene margen de capacidad: hasta 40 TPS no muestra degradacion.
+  - Los resultados son consistentes entre corridas, por lo que la
+    conclusion es confiable.
+ 
+ 
+6. LIMITACIONES Y RECOMENDACIONES
+---------------------------------
+  - Ambiente: se probo contra una API publica compartida, sin acceso al
+    monitoreo del servidor (CPU, memoria, base de datos). En un ambiente
+    propio se recomienda correlacionar las metricas de k6 con el
+    monitoreo del backend.
+  - Ubicacion del generador: las pruebas se ejecutaron desde Uruguay
+    contra un servidor remoto; parte del tiempo de respuesta incluye la
+    latencia de red geografica, igual para todas las corridas.
+  - Proximos pasos sugeridos (en un ambiente controlado):
+      * Estres con escalones mayores (60, 80, 100+ TPS) para encontrar
+        el punto de quiebre real.
+      * Prueba de resistencia (soak) de 1-2 horas a 20 TPS para detectar
+        fugas de memoria o degradacion en el tiempo.
+      * Integrar la prueba en el pipeline de CI/CD con los thresholds
+        como quality gate (k6 devuelve codigo 99 si un criterio falla).
+ 
+ 
+7. EVIDENCIA
+------------
+Reportes completos de cada corrida en la carpeta reports/:
+  reports/baseline/   baseline-run1..3  (.html, -summary.txt, -summary.json)
+  reports/load/       load-run1..3      (.html, -summary.txt, -summary.json)
+  reports/stress/     stress-run1       (.html, -summary.txt, -summary.json)
+Los archivos .html se abren con cualquier navegador y no requieren
+conexion a internet.
+ 
