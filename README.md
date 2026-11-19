@@ -28,7 +28,7 @@ Flujo automatizado en http://opencart.abstracta.us/: agregar **MacBook** e **iPh
 
 ![Reporte Serenity](docs/img/serenity-resumen.png)
 
-📄 [readme.txt](01-e2e-opencart-serenity/readme.txt) · [conclusiones.txt](01-e2e-opencart-serenity/conclusiones.txt) · [Reporte HTML](github.io/qa-challenge-sofka/01-e2e-opencart-serenity/reports/index.html)
+📄 [readme.txt](01-e2e-opencart-serenity/readme.txt) · [conclusiones.txt](01-e2e-opencart-serenity/conclusiones.txt) · [Reporte HTML](ghttps://santisanchez4.github.io/qa-challenge-sofka/01-e2e-opencart-serenity/reports/index.html)
 
 ---
 
@@ -42,7 +42,7 @@ Casos: **crear** usuario → **buscar** → **actualizar** nombre y correo → *
 
 ![Reporte Karate](docs/img/karate-resumen.png)
 
-📄 [readme.txt](02-api-petstore-karate/readme.txt) · [conclusiones.txt](02-api-petstore-karate/conclusiones.txt) · [Reporte HTML](github.io/qa-challenge-sofka/02-api-petstore-karate/reports/karate-summary.html)
+📄 [readme.txt](02-api-petstore-karate/readme.txt) · [conclusiones.txt](02-api-petstore-karate/conclusiones.txt) · [Reporte HTML](https://santisanchez4.github.io/qa-challenge-sofka/02-api-petstore-karate/reports/karate-summary.html)
 
 ---
 
@@ -62,7 +62,7 @@ Se ejecutaron 3 corridas de línea base (2 TPS), 3 de carga (20 TPS) y 1 de estr
 
 ![Dashboard k6](docs/img/k6-carga.png)
 
-📄 [readme.txt](03-performance-k6-login/readme.txt) · [conclusiones.txt](03-performance-k6-login/conclusiones.txt) · [Reporte HTML (carga)](github.io/qa-challenge-sofka/03-performance-k6-login/reports/load/load-run1.html)
+📄 [readme.txt](03-performance-k6-login/readme.txt) · [conclusiones.txt](03-performance-k6-login/conclusiones.txt) · [Reporte HTML (carga)](https://santisanchez4.github.io/qa-challenge-sofka/03-performance-k6-login/reports/load/load-run1.html)
 
 ---
 
